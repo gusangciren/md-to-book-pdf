@@ -78,17 +78,35 @@ jobs:
       - name: 环境自检（字体缺失不阻断）
         run: python scripts/check_env.py || echo "[警告] 自检未全通过；若仅字体缺失则不影响功能正确性"
 
+      # tee 要往 build/ 写日志，目录必须先存在
+      - name: 准备输出目录
+        run: mkdir -p build
+
       #书名用 ASCII：CI 只验证「流水线能跑通」，不需要中文排版。
       # Ubuntu runner 默认 POSIX locale，argv 里的中文可能被按 latin-1 解读而报错；
       # 用 ASCII 彻底绕开对 runner locale 的依赖。
-      # 注意：Windows runner 默认 shell 是 PowerShell，bash 的 `\` 续行会失败，故用单行
+      # 注意：Windows runner 默认 shell 是 PowerShell，bash 的 `\` 续行会失败，故用单行。
+      # 同时把 stdout/stderr 收进文件并上传：runner 日志要 actions:read 权限才能抓，
+      # 收进产物后即使抓不到日志也能拿到失败原因。
       - name: 端到端成书
-        run: python scripts/make_book.py --md-file examples/sample.md --split-by h2 --title "Sample Book" --author "Sample Author" --cover-style forest --motif path --meta "Sample" --out build/ci-sample.pdf
+        shell: bash
+        run: python scripts/make_book.py --md-file examples/sample.md --split-by h2 --title "Sample Book" --author "Sample Author" --cover-style forest --motif path --meta "Sample" --out build/ci-sample.pdf 2>&1 | tee build/ci-book.log; exit ${PIPESTATUS[0]}
 
       - name: 封面满版校验
-        run: python scripts/check_bleed.py build/ci-sample.pdf
+        shell: bash
+        run: python scripts/check_bleed.py build/ci-sample.pdf 2>&1 | tee build/ci-bleed.log; exit ${PIPESTATUS[0]}
+
+      # 无论成败都上传日志——CI 失败时需要它定位原因
+      - name: 上传日志（失败诊断用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.os }}
+          path: build/*.log
+          if-no-files-found: ignore
 
       - name: 上传成品
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: sample-${{ matrix.os }}
@@ -107,5 +125,15 @@ jobs:
       # bash 的 `\` 续行在那里会被当成转义符导致整条命令解析失败。
       # 书名用 ASCII：不依赖 runner locale（Ubuntu 默认 POSIX，中文 argv 可能被
       # 按 latin-1 解读而报错）。这里只验证流水线能跑通，不需要中文排版。
+      # 日志收进产物：runner 日志要 actions:read 权限才能抓，收进产物后即可自查。
       - name: 出封面（矢量，不依赖浏览器截图）
-        run: python scripts/make_cover.py --title "Sample Book" --author "Sample Author" --style red-bright --format svg --out build/cover.svg
+        shell: bash
+        run: mkdir -p build && python scripts/make_cover.py --title "Sample Book" --author "Sample Author" --style red-bright --format svg --out build/cover.svg 2>&1 | tee build/ci-cover.log; exit ${PIPESTATUS[0]}
+
+      - name: 上传日志（失败诊断用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-cover
+          path: build/*.log
+          if-no-files-found: ignore
