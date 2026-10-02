@@ -3,6 +3,8 @@ detect_chapters.py
 在 raw.pdf 中探测每个章节扉页的真实页码，输出 toc.json（供 build_book.py 第二次运行回填目录）。
 排版（字号/边距/图片）改动后必须重跑，禁止复用旧 toc.json。
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import json
 import os
