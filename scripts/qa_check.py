@@ -6,6 +6,7 @@ QA 自检脚本：抽取关键页面输出 PNG 截图，用于交付前校验排
 import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import os
+import sys
 
 import pymupdf as fitz
 
@@ -15,6 +16,10 @@ def main():
     parser.add_argument("--pdf", required=True, help="待校验的最终 PDF")
     parser.add_argument("--out-snapshots", required=True, help="截图输出目录")
     args = parser.parse_args()
+
+    if not os.path.isfile(args.pdf):
+        print(f"[错误] 找不到 PDF：{args.pdf}")
+        return 2
 
     os.makedirs(args.out_snapshots, exist_ok=True)
 
@@ -35,4 +40,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)
