@@ -1,3 +1,5 @@
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
