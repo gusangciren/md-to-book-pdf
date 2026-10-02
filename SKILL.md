@@ -122,9 +122,9 @@ python scripts/check_bleed.py 书.pdf           # 容差 0.5mm，通过退0 / �
 python scripts/check_bleed.py 书.pdf --tol 1.0  # 放宽到1mm
 ```
 
-两种手段交叉判定，任何一种判为有白边即报错：
-- **几何法**：读首页图片 bbox 与页面矩形比对，报出四边留白精确 mm 数
-- **像素法**：低 dpi 采样四边像素，能抓到「bbox 正确但图像本身留白」的情况
+**几何法是唯一判据**：读首页图片 bbox 与页面矩形比对，报出四边留白精确 mm 数。
+
+输出里的「四边采样」是像素法，**仅作参考、不参与判定**——light / forest 等浅色主题封面的渐变顶部本身（实测 RGB 249,245,235）与页面底色（251,247,238）只差 2–3，像素法在原理上分不清「浅色封面」与「真留白」，强行判定会对浅色主题误报。
 
 `make_book.py` 已在成书后自动跑这一步（步骤 8），留白会让整条流水线非零退出——CI 里可直接用返回值卡质量。
 
@@ -250,6 +250,9 @@ python scripts/check_bleed.py 书.pdf --tol 1.0  # 放宽到1mm
    ⚠️ **调试陷阱**：用「只有纯色块的简单测试 SVG」验证这套方案会得到假阴性——Edge 打印不把简单 SVG 当图片嵌入（`page.get_image_info()` 返回 0），看起来像方案失效。必须用 `build_book.py` 生成的**真实复杂 cover.svg**（含渐变 + 文字）测试，或直接跑 `check_bleed.py` 让机器判。
 15. 改动封面相关 CSS 后**必须跑 `check_bleed.py` 验证**，不要凭截图判断——白边在阅读器预览里几乎看不出来。改完`make_book.py` 会自动跑这一步。
 16. 只改封面配色/文案时用 `make_cover.py` 单独出图迭代，别为试一个配色重跑整条流水线。
+17. **输出目录要自动创建，别让用户先 `mkdir`**。`--out "输出/我的书.pdf"` 是很自然的写法，若目录不存在，`pymupdf.save()` 会抛 `FileNotFoundError`，而 `make_book.py` 用 `subprocess.run(check=True)` 调脚本，用户看到的是一整段 `CalledProcessError` traceback，完全不知道只是「目录不存在」。修法：调用前先 `os.makedirs(out_dir, exist_ok=True)` 并在失败时给中文提示；`finalize_book.py` / `replace_cover.py` 独立调用时也要自建。
+18. **输入文件不存在也要拦在入口**。同理，`pymupdf.open()` 抛的 `FileNotFoundError` 对新手是噪音，脚本入口统一先 `os.path.isfile()` 判断，打印「找不到文件：xxx」+ 检查拼写的提示，退 2（与「校验不通过」的退 1 区分开）。
+19. **拿不到 stdout 就别猜**。Windows runner 默认 PowerShell、非 UTF-8 终端（cp1252/cp936）会让 `print` 中文直接 `UnicodeEncodeError`；容器里 Chromium 缺沙箱会 `SIGABRT` + `Broken pipe`。症状是「CI 红了但日志看不懂」。正确做法是**第一时间让 CI 把输出写进产物**（`2>&1 | tee build/x.log` + `if: always()` 上传），而不是猜原因——本次就是这样猜错三轮才对上。
 8. 图片相对路径按**输出 html 所在目录**解析（如 `./build/book.html` 引用 `./build/` 下的图）；书稿里的相对路径对不上时改用绝对路径或把图片拷进 build 目录。
 9. 章节极多导致目录跨页时，回填页码可能使目录多占一页、页码整体偏移——回填后复查目录页数，如有偏移再迭代一轮 detect → build → print。
 10. Obsidian `![[xxx.png]]` 语法 markdown 库不认识，执行前先替换成 `![](xxx.png)` 并核对路径。
