@@ -5,9 +5,10 @@ check_bleed.py
 为什么需要自动化：
 - 「封面有没有留白边」用眼睛看会漏——PDF 阅读器的页面预览本身带背景色和缩放，
   几毫米的白边在截图里几乎看不出来（历史上就是这样漏掉的）。
-- 本脚本用两种独立手段交叉判定，任何一种判定为「有白边」即报错退出码 1：
-  ① 几何法：读首页图片 bbox，与页面矩形比对的四边留白（mm）
-  ② 像素法：直接采样页面四边像素，看是否与封面主色系一致（能抓到 bbox 正确但图像本身留白的边界情况）
+- 判据是**几何法**：读首页图片 bbox，与页面矩形比对四边留白（mm）。
+- 另有像素法（四边采样）仅作**参考输出**，不参与判定：浅色主题封面
+  （light/forest）的渐变顶部本身接近页面底色，像素法无法区分「浅色封面」
+  与「真留白」，强行判定会误报。
 
 用法：
     python scripts/check_bleed.py 书.pdf            # 校验首页
@@ -17,6 +18,7 @@ check_bleed.py
 
 import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
+import os
 import sys
 
 import pymupdf
@@ -24,9 +26,15 @@ import pymupdf
 MM = 72 / 25.4  # pt per mm
 
 
-def _is_blank(r, g, b):
-    """接近米白/纯白即视为白边。正文底色是 #FBF7EE=(251,247,238)"""
-    return r > 236 and g > 232 and b > 222
+def _is_page_bg(r, g, b):
+    """判断是否为页面底色（真留白）。
+
+    不能用「接近纯白」当判据 —— light/forest 等主题封面顶部就是米白浅色渐变
+    （实测 RGB 246,242,230），会被误判成白边。
+    页面上真正露出的空白只能是页面自身的米白底 #FBF7EE=(251,247,238)，
+    因此按「与页面底色的距离」判定，比绝对白阈值可靠。
+    """
+    return abs(r - 251) <= 6 and abs(g - 247) <= 6 and abs(b - 238) <= 6
 
 
 def check(path, tol=0.5):
@@ -61,28 +69,27 @@ def check(path, tol=0.5):
                 ok = False
             print(f"  {side}边留白 {max(0.0, v):.2f} mm  [{flag}]")
 
-        # ---- ② 像素法：四边采样 ----
+        # ---- ② 像素法：四边采样（仅作参考，不参与判定） ----
+        # 为什么只作参考：浅色主题封面（light/forest）的渐变顶部本身就接近页面底色
+        # （实测 forest 左上角 RGB 249,245,235 vs 底色 251,247,238，仅差 2–3），
+        # 像素法在这种主题下从原理上无法区分「浅色封面」与「真留白」，
+        # 强行判定会误报。几何法（bbox）能精确判定，是唯一判据。
         # 用低 dpi 快速采样，避免为了几个像素渲染整页
         pix = page.get_pixmap(dpi=36)
         w, h, n = pix.width, pix.height, pix.n
 
         def sample(xs, ys, label):
-            nonlocal ok
             blanks = 0
             total_px = 0
             for x, y in zip(xs, ys):
                 if 0 <= x < w and 0 <= y < h:
                     o = (y * w + x) * n
                     total_px += 1
-                    if _is_blank(pix.samples[o], pix.samples[o + 1], pix.samples[o + 2]):
+                    if _is_page_bg(pix.samples[o], pix.samples[o + 1], pix.samples[o + 2]):
                         blanks += 1
             if total_px == 0:
                 return
-            ratio = blanks / total_px
-            flag = "OK" if ratio <= 0.25 else "疑似白边"
-            if ratio > 0.25:
-                ok = False
-            print(f"  {label}采样：{blanks}/{total_px} 像素发白（{ratio:.0%}）[{flag}]")
+            print(f"  {label}采样：{blanks}/{total_px} 接近页面底色（{blanks / total_px:.0%}）[参考]")
 
         m = max(1, w // 20)
         sample(range(m, w - m, max(1, (w - 2 * m) // 12)), [0] * 12, "上边")
@@ -94,7 +101,7 @@ def check(path, tol=0.5):
         if ok:
             print(f"[通过] 封面满版铺满整页（四边留白 ≤ {tol} mm），无白边。")
         else:
-            print(f"[失败] 封面未满版，存在白边。修法见 SKILL.md 踩坑第7 条：")
+            print("[失败] 封面未满版，存在白边。修法见 SKILL.md 踩坑第 7 条：")
             print("  @page cover { margin: 0 } + .cover-page img { width:100%; height:100%; "
                   "object-fit:cover } + body { margin:0 }，三者缺一不可。")
         return ok
@@ -112,6 +119,14 @@ def main():
     if args.no_cover:
         print("[跳过] --no-cover，不校验封面")
         sys.exit(0)
+
+    # 先判存在性：否则 pymupdf 会抛 FileNotFoundError traceback，
+    # 新手看到一大段栈根本不知道只是路径打错了
+    if not os.path.isfile(args.pdf):
+        print(f"[错误] 找不到文件：{args.pdf}")
+        print("请确认路径拼写（Windows 下若含中文或空格，注意用引号包住整个路径）。")
+        sys.exit(2)
+
     sys.exit(0 if check(args.pdf, args.tol) else 1)
 
 
