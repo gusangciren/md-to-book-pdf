@@ -90,6 +90,10 @@ def main():
             color=(0.25, 0.22, 0.18),
             align=fitz.TEXT_ALIGN_CENTER,
         )
+    # 独立调用本脚本时（不经 make_book.py），输出目录可能还不存在
+    out_dir = os.path.dirname(os.path.abspath(args.out_pdf))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     doc.save(args.out_pdf, garbage=3, deflate=True)
     doc.close()
     print(f"[完成] 已输出 {args.out_pdf}")
