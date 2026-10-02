@@ -253,6 +253,7 @@ python scripts/check_bleed.py 书.pdf --tol 1.0  # 放宽到1mm
 17. **输出目录要自动创建，别让用户先 `mkdir`**。`--out "输出/我的书.pdf"` 是很自然的写法，若目录不存在，`pymupdf.save()` 会抛 `FileNotFoundError`，而 `make_book.py` 用 `subprocess.run(check=True)` 调脚本，用户看到的是一整段 `CalledProcessError` traceback，完全不知道只是「目录不存在」。修法：调用前先 `os.makedirs(out_dir, exist_ok=True)` 并在失败时给中文提示；`finalize_book.py` / `replace_cover.py` 独立调用时也要自建。
 18. **输入文件不存在也要拦在入口**。同理，`pymupdf.open()` 抛的 `FileNotFoundError` 对新手是噪音，脚本入口统一先 `os.path.isfile()` 判断，打印「找不到文件：xxx」+ 检查拼写的提示，退 2（与「校验不通过」的退 1 区分开）。
 19. **拿不到 stdout 就别猜**。Windows runner 默认 PowerShell、非 UTF-8 终端（cp1252/cp936）会让 `print` 中文直接 `UnicodeEncodeError`；容器里 Chromium 缺沙箱会 `SIGABRT` + `Broken pipe`。症状是「CI 红了但日志看不懂」。正确做法是**第一时间让 CI 把输出写进产物**（`2>&1 | tee build/x.log` + `if: always()` 上传），而不是猜原因——本次就是这样猜错三轮才对上。
+20. **`--split-by h2` 会吞掉正文图片（真 bug，已修）**。`split_by_h2()` 原本有一句 `if stripped.startswith("!") and ")" in stripped: continue`，本意是跳过封面图引用，但封面图引用在首个 `## ` 之前，本就会被「`title is None` 阶段」统一丢弃；这句判断是多余的，且会**误删正文里所有以 `!` 开头的图片行**（书稿用 `## 第 N 章` 分章时，全部走这个分支）。表现为：PDF 里正文图 0 张、目录/封面正常。修法：删掉那句 `startswith("!")` 判断。验证：改完用书稿（20 图）跑，`get_images()` 应从 0 变 21（封面光栅化 1 + 正文 20）。CI 用无图 `sample.md` 测不出这个 bug，带图书稿才暴露。
 8. 图片相对路径按**输出 html 所在目录**解析（如 `./build/book.html` 引用 `./build/` 下的图）；书稿里的相对路径对不上时改用绝对路径或把图片拷进 build 目录。
 9. 章节极多导致目录跨页时，回填页码可能使目录多占一页、页码整体偏移——回填后复查目录页数，如有偏移再迭代一轮 detect → build → print。
 10. Obsidian `![[xxx.png]]` 语法 markdown 库不认识，执行前先替换成 `![](xxx.png)` 并核对路径。
