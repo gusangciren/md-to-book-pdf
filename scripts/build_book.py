@@ -11,6 +11,8 @@ CLI 工具：解析单文件/多文件 Markdown，生成用于 Edge headless 打
 - 同时写出 chapters.json（章节锚点与标题），供 detect_chapters.py 探测真实页码
 - 第二次运行时自动读取输出目录下的 toc.json，把真实页码回填进目录
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import base64
 import json
