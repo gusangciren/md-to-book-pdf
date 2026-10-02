@@ -28,49 +28,57 @@ jobs:
           pip install -r requirements.txt
 
       # 霞鹜文楷是版式对齐的关键，缺了正文会回退成系统默认字体。
-      # 这里装的是字体文件本体；Linux 上还要跑 fc-cache 让 fontconfig 感知到。
+      # 用 releases/latest 而不是钉版本号，避免上游发新版后旧 tag 消失导致 404。
+      # Windows 装进用户字体目录（msys 的 $HOME/.fonts 对 Windows 无效）。
       - name: 安装霞鹜文楷字体
         shell: bash
         run: |
-          mkdir -p "$HOME/.fonts"
-          curl -fsSL -o "$HOME/.fonts/LXGWWenKai-Regular.ttf" \
-            "https://github.com/lxgw/LxgwWenKai/releases/download/v1.520/LXGWWenKai-Regular.ttf"
-          if command -v fc-cache >/dev/null 2>&1; then fc-cache -f; fi
+          set -e
+          URL="https://github.com/lxgw/LxgwWenKai/releases/latest/download/LXGWWenKai-Regular.ttf"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            DEST_DIR="$LOCALAPPDATA/Microsoft/Windows/Fonts"
+            mkdir -p "$DEST_DIR"
+            curl -fsSL -o "$DEST_DIR/LXGWWenKai-Regular.ttf" "$URL"
+          else
+            DEST_DIR="$HOME/.local/share/fonts"
+            mkdir -p "$DEST_DIR"
+            curl -fsSL -o "$DEST_DIR/LXGWWenKai-Regular.ttf" "$URL"
+            fc-cache -f
+          fi
+          test -s "$DEST_DIR/LXGWWenKai-Regular.ttf"
 
-      # Ubuntu runner 自带 Chrome/Chromium，但 /usr/bin 下不一定有，
-      # 而 microsoft-edge 稳定通道最省事，也与 find_browser() 的候选列表一致。
-      # 注意：不要用 apt 装 chromium-browser —— Ubuntu 24.04 换成了 snap 过渡包，会失败。
+      # 按OS 分开处理，千万别混在一起：
+      # - Windows runner 自带 msedge.exe，但它不在 PATH 上，command -v 查不到。
+      #   如果不分流，Linux 的 apt 分支会在 Windows 上执行并因没有 sudo 直接失败。
+      # - Linux 用 microsoft-edge 稳定通道；不要用 apt 装 chromium-browser
+      #   —— Ubuntu 24.04 换成了 snap 过渡包，会失败。
       - name: 确保浏览器可用
         shell: bash
         run: |
           set -e
-          ok=0
-          for b in microsoft-edge microsoft-edge-stable google-chrome-stable chromium chromium-browser; do
-            if command -v "$b" >/dev/null 2>&1; then ok=1; echo "found: $b"; fi
-          done
-          if [ "$ok" = "0" ]; then
-            echo "未找到浏览器，安装 microsoft-edge…"
-            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg
-            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list > /dev/null
-            sudo apt-get update -qq
-            sudo apt-get install -y microsoft-edge fonts-noto-cjk
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "windows-latest 自带 Edge，跳过安装"
+          else
+            ok=0
+            for b in microsoft-edge microsoft-edge-stable google-chrome-stable chromium; do
+              if command -v "$b" >/dev/null 2>&1; then ok=1; echo "found: $b"; fi
+            done
+            if [ "$ok" = "0" ]; then
+              echo "未找到浏览器，安装 microsoft-edge…"
+              curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg
+              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list > /dev/null
+              sudo apt-get update -qq
+              sudo apt-get install -y microsoft-edge fonts-noto-cjk
+            fi
           fi
 
       - name: 环境自检
         run: python scripts/check_env.py
 
       # 端到端：出书 → 侧边栏书签 → 满版校验（失败会非零退出，卡住合并）
+      # 注意：Windows runner 默认 shell 是 PowerShell，bash 的 `\` 续行会失败，故用单行
       - name: 端到端成书
-        run: |
-          python scripts/make_book.py \
-            --md-file examples/sample.md \
-            --split-by h2 \
-            --title "像企业家一样写作" \
-            --author "示例作者" \
-            --cover-style forest \
-            --motif path \
-            --meta "样稿 · 演示" \
-            --out build/ci-sample.pdf
+        run: python scripts/make_book.py --md-file examples/sample.md --split-by h2 --title "像企业家一样写作" --author "示例作者" --cover-style forest --motif path --meta "样稿 · 演示" --out build/ci-sample.pdf
 
       - name: 封面满版校验
         run: python scripts/check_bleed.py build/ci-sample.pdf
@@ -90,7 +98,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      # 单行命令，不跨行续行 —— Windows runner 默认 shell 是 PowerShell，
+      # bash 的 `\` 续行在那里会被当成转义符导致整条命令解析失败
       - name: 出封面（矢量，不依赖浏览器截图）
-        run: |
-          python scripts/make_cover.py --title "闭环" --author "古思" \
-            --style red-bright --format svg --out build/cover.svg
+        run: python scripts/make_cover.py --title "闭环" --author "古思" --style red-bright --format svg --out build/cover.svg
