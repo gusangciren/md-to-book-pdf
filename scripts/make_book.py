@@ -1,3 +1,5 @@
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -82,14 +84,24 @@ def print_pdf(browser, html_path, out_pdf):
 
     每次用独立的临时 --user-data-dir：用户此时往往正开着 Edge/Chrome，
     共用默认配置目录会被占用，导致打印静默失败或串到已有实例。
+
+    Linux 上必须加 --no-sandbox：容器/CI 里没有 user namespace 权限，
+    Chromium 的沙箱会直接 SIGABRT（Broken pipe / Signal 6）。
+    Windows/macOS 本地不需要，加了反而可能触发安全提示。
     """
     import tempfile
     from pathlib import Path
     profile = tempfile.mkdtemp(prefix="md2pdf_edge_")
     # as_uri() 会把中文/空格路径正确百分号编码，直接传裸路径在部分系统上会失败
     file_url = Path(os.path.abspath(html_path)).as_uri()
+
+    # 仅 Linux 需要关沙箱；用 sys.platform 判断，避免容器里 os.name 都是 posix
+    linux = sys.platform.startswith("linux")
+    extra = ["--no-sandbox", "--disable-dev-shm-usage"] if linux else []
+
     cmd = [
         browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+        *extra,
         f"--user-data-dir={profile}",
         f"--print-to-pdf={out_pdf}", file_url,
     ]
@@ -100,6 +112,7 @@ def print_pdf(browser, html_path, out_pdf):
         # 旧版 Edge/Chrome 不带 --headless=new 也能用，兜底重试
         fallback = [
             browser, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+            *extra,
             f"--user-data-dir={profile}",
             f"--print-to-pdf={out_pdf}", file_url,
         ]
