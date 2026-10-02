@@ -2,6 +2,8 @@
 qa_check.py
 QA 自检脚本：抽取关键页面输出 PNG 截图，用于交付前校验排版问题。
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import os
 
