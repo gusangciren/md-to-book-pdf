@@ -14,6 +14,8 @@ check_bleed.py
     python scripts/check_bleed.py 书.pdf --tol 1.0  # 容差 1mm（默认 0.5mm）
     python scripts/check_bleed.py 书.pdf --no-cover # 无封面书，跳过
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import sys
 
