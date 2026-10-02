@@ -6,6 +6,8 @@ PyMuPDF 后处理：
 - 第 1 页是封面时传 --has-cover，跳过封面页页脚
 - 传 --toc-json 时写入 PDF 侧边栏书签大纲（章节树），便于阅读器导航
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import json
 import os
