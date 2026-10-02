@@ -189,6 +189,17 @@ def main():
     check_font()
 
     os.makedirs(args.build_dir, exist_ok=True)
+
+    # 提前建好输出目录：--out 写成「输出/我的书.pdf」这类带目录的路径很常见，
+    # 不预先创建的话会一路跑到 finalize_book.py 才抛 CalledProcessError，
+    # 用户看到的是一大段 subprocess traceback，很难定位
+    out_dir = os.path.dirname(os.path.abspath(args.out))
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+    except OSError as e:
+        print(f"[错误] 无法创建输出目录 {out_dir}：{e}")
+        return 1
+
     build_dir = os.path.abspath(args.build_dir)
     book_html = os.path.join(build_dir, "book.html")
     raw_pdf = os.path.join(build_dir, "raw.pdf")
@@ -253,4 +264,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)
