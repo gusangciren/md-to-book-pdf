@@ -19,6 +19,8 @@ make_cover.py
     # 只出矢量 SVG（要交给设计师改）
     python scripts/make_cover.py --title "闭环" --author "古思" --style wine --format svg --out 封面.svg
 """
+
+import _utf8_stdout  # noqa: F401  # 必须在其他 import 之前：保证中文输出不因终端编码崩溃
 import argparse
 import os
 import shutil
@@ -92,9 +94,13 @@ def svg_to_png(browser, svg, out_png, scale=2):
         os.makedirs(os.path.dirname(os.path.abspath(out_png)) or ".", exist_ok=True)
         # 独立 profile：用户可能正开着浏览器，共用默认目录会因文件锁失败
         profile = tempfile.mkdtemp(prefix="mkcover_edge_")
+        # Linux 容器/CI 里 Chromium 沙箱会 SIGABRT，必须关掉（同make_book.py）
+        extra = ["--no-sandbox", "--disable-dev-shm-usage"] \
+            if sys.platform.startswith("linux") else []
         cmd = [
             browser, "--headless=new", "--disable-gpu",
             "--default-background-color=00000000",
+            *extra,
             f"--force-device-scale-factor={scale}",
             f"--user-data-dir={profile}",
             f"--screenshot={os.path.abspath(out_png)}",
