@@ -1,0 +1,24 @@
+# 工具产物
+build/
+dist/
+*.pdf.tmp
+
+# 封面预览等中间输出
+cover-previews/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 注意：examples/sample.pdf 是**故意提交**的成品参考，展示最终效果，不要忽略。
+# 本地发布脚本（含token 流程），不入库
+publish.sh
