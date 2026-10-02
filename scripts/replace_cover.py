@@ -15,6 +15,7 @@ replace_cover.py — 替换**已有 PDF** 的封面页，不重排正文
       --toc-json toc.json --toc-page 2 --book-title "书名"
 """
 import argparse
+import os
 import sys
 
 import pymupdf as fitz
@@ -32,6 +33,15 @@ def main():
 
     if not args.cover.lower().endswith((".png", ".jpg", ".jpeg")):
         sys.exit(f"[错误] 封面图只支持 PNG/JPG：{args.cover}")
+    if not os.path.isfile(args.pdf):
+        sys.exit(f"[错误] 找不到原 PDF：{args.pdf}")
+    if not os.path.isfile(args.cover):
+        sys.exit(f"[错误] 找不到封面图：{args.cover}")
+
+    # 输出目录可能还不存在（如 --out 写到「输出/子目录/新书.pdf」）
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
 
     doc = fitz.open(args.pdf)
     if not 1 <= args.page <= len(doc):
