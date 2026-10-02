@@ -89,9 +89,6 @@ def split_by_h2(md_text):
     in_toc = False
     for line in md_text.split("\n"):
         stripped = line.strip()
-        # 跳过封面图引用（![...](...)）
-        if stripped.startswith("!") and ")" in stripped:
-            continue
         if stripped.startswith("## "):
             heading = stripped[3:].strip()
             # 跳过目录章及其后的列表，直到下一个 `## `
