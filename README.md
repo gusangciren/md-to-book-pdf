@@ -7,6 +7,17 @@
 
 > 本工具的设计语言来自「像企业家一样写作」站点：安静编辑感（米白底 + 真实封面 + 克制留白）、霞鹜文楷字体、金色强调。任何人用本工具，得到的效果与作者一致。
 
+## 效果预览
+
+**点击封面直接在 GitHub 里翻看完整 PDF，无需下载**（左边是验证用的最小示例，右边是同一条流水线跑出的 55 页真实书稿）：
+
+| 最小示例 | 真实书稿《闭环》 |
+|:---:|:---:|
+| [![sample 封面](examples/preview-sample.png)](examples/sample.pdf) | [![闭环 封面](examples/preview-闭环.png)](examples/闭环.pdf) |
+| 5 页 · 2 章 · 无图 · 491 KB | 55 页 · 7 章 · 20 张配图 · 9.2 MB |
+
+更多对比说明见 [examples/README.md](examples/README.md)。
+
 ```bash
 git clone https://github.com/gusangciren/md-to-book-pdf.git
 cd md-to-book-pdf
